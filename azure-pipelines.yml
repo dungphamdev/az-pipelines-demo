@@ -7,6 +7,7 @@ pool:
 variables:
   buildConfiguration: Release
   projectPath: src/AzPipelinesDemo.csproj
+  testProjectPath: tests/AzPipelinesDemo.Tests/AzPipelinesDemo.Tests.csproj
 
 steps:
 - task: UseDotNet@2
@@ -19,7 +20,9 @@ steps:
   displayName: Restore
   inputs:
     command: restore
-    projects: $(projectPath)
+    projects: |
+      $(projectPath)
+      $(testProjectPath)
 
 - task: DotNetCoreCLI@2
   displayName: Build
@@ -27,6 +30,14 @@ steps:
     command: build
     projects: $(projectPath)
     arguments: --configuration $(buildConfiguration) --no-restore
+
+- task: DotNetCoreCLI@2
+  displayName: Test
+  inputs:
+    command: test
+    projects: $(testProjectPath)
+    arguments: --configuration $(buildConfiguration) --no-restore --logger trx --collect "XPlat Code Coverage"
+    publishTestResults: true
 
 - task: DotNetCoreCLI@2
   displayName: Publish
