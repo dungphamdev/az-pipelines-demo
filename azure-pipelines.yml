@@ -8,6 +8,7 @@ variables:
   buildConfiguration: Release
   projectPath: src/AzPipelinesDemo.csproj
   testProjectPath: tests/AzPipelinesDemo.Tests/AzPipelinesDemo.Tests.csproj
+  coverageReportPath: $(Agent.TempDirectory)/coveragereport
 
 steps:
 - task: UseDotNet@2
@@ -38,6 +39,21 @@ steps:
     projects: $(testProjectPath)
     arguments: --configuration $(buildConfiguration) --no-restore --logger trx --collect "XPlat Code Coverage"
     publishTestResults: true
+
+- script: |
+    dotnet tool install --global dotnet-reportgenerator-globaltool
+    reportgenerator \
+      -reports:"$(Agent.TempDirectory)/**/coverage.cobertura.xml" \
+      -targetdir:"$(coverageReportPath)" \
+      -reporttypes:"HtmlInline_AzurePipelines;Cobertura"
+  displayName: Generate Code Coverage Report
+
+- task: PublishCodeCoverageResults@2
+  displayName: Publish Code Coverage
+  inputs:
+    summaryFileLocation: $(coverageReportPath)/Cobertura.xml
+    reportDirectory: $(coverageReportPath)
+    failIfCoverageEmpty: true
 
 - task: DotNetCoreCLI@2
   displayName: Publish
