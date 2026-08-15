@@ -32,6 +32,48 @@ flowchart LR
     bicep --> sql
 ```
 
+## Azure Pipelines
+
+The pipeline has two stages:
+
+```mermaid
+flowchart TD
+    start[Push to master] --> buildStage[Build stage]
+    buildStage --> restore[Restore]
+    restore --> build[Build]
+    build --> test[Test]
+    test --> coverage[Generate coverage report]
+    coverage --> publish[Publish artifact: drop]
+    publish --> deployStage[Deploy stage]
+    deployStage --> download[Download artifact]
+    download --> appService[Deploy to Azure App Service]
+```
+
+The deploy task uses the service connection named:
+
+```text
+sc-az-pipelines-demo
+```
+
+Create it in Azure DevOps:
+
+```text
+Project settings -> Service connections -> New service connection
+Azure Resource Manager -> Workload identity federation
+```
+
+Grant the service principal `Contributor` on the resource group:
+
+```powershell
+az role assignment create `
+  --assignee-object-id "<service-principal-object-id>" `
+  --assignee-principal-type ServicePrincipal `
+  --role Contributor `
+  --resource-group rg-az-pipelines-demo
+```
+
+The role assignment lets the pipeline find and deploy to the Web App, but it does not allow the service principal to grant Azure RBAC permissions to others.
+
 ## What This Demonstrates
 
 - ASP.NET Core MVC on `.NET 10`
@@ -48,20 +90,20 @@ flowchart LR
 
 ```text
 .
-├── azure-pipelines.yml          # Build/test/coverage/deploy pipeline
-├── Dockerfile                   # Optional container build for .NET 10
-├── global.json                  # Pins .NET SDK 10.0.203
-├── infra/
-│   ├── main.bicep               # Azure resources: App Service, SQL, Key Vault
-│   └── app-settings.bicep       # App Service environment variables
-├── src/
-│   ├── Controllers/             # MVC controllers
-│   ├── Data/                    # EF Core DbContext
-│   ├── Migrations/              # EF Core migrations
-│   ├── Models/                  # Product and error models
-│   └── Views/                   # Razor views
-└── tests/
-    └── AzPipelinesDemo.Tests/   # xUnit tests
+|-- azure-pipelines.yml          # Build/test/coverage/deploy pipeline
+|-- Dockerfile                   # Optional container build for .NET 10
+|-- global.json                  # Pins .NET SDK 10.0.203
+|-- infra/
+|   |-- main.bicep               # Azure resources: App Service, SQL, Key Vault
+|   `-- app-settings.bicep       # App Service environment variables
+|-- src/
+|   |-- Controllers/             # MVC controllers
+|   |-- Data/                    # EF Core DbContext
+|   |-- Migrations/              # EF Core migrations
+|   |-- Models/                  # Product and error models
+|   `-- Views/                   # Razor views
+`-- tests/
+    `-- AzPipelinesDemo.Tests/   # xUnit tests
 ```
 
 ## Local Development
@@ -211,48 +253,6 @@ az webapp restart `
 
 Remember: the next full Bicep deployment will reset the value to whatever is defined in `infra/app-settings.bicep`.
 
-## Azure Pipelines
-
-The pipeline has two stages:
-
-```mermaid
-flowchart TD
-    start[Push to master] --> buildStage[Build stage]
-    buildStage --> restore[Restore]
-    restore --> build[Build]
-    build --> test[Test]
-    test --> coverage[Generate coverage report]
-    coverage --> publish[Publish artifact: drop]
-    publish --> deployStage[Deploy stage]
-    deployStage --> download[Download artifact]
-    download --> appService[Deploy to Azure App Service]
-```
-
-The deploy task uses the service connection named:
-
-```text
-sc-az-pipelines-demo
-```
-
-Create it in Azure DevOps:
-
-```text
-Project settings -> Service connections -> New service connection
-Azure Resource Manager -> Workload identity federation
-```
-
-Grant the service principal `Contributor` on the resource group:
-
-```powershell
-az role assignment create `
-  --assignee-object-id "<service-principal-object-id>" `
-  --assignee-principal-type ServicePrincipal `
-  --role Contributor `
-  --resource-group rg-az-pipelines-demo
-```
-
-The role assignment lets the pipeline find and deploy to the Web App, but it does not allow the service principal to grant Azure RBAC permissions to others.
-
 ## Useful Azure Commands
 
 Show the Web App URL:
@@ -303,33 +303,11 @@ az keyvault secret show `
 
 Only grant yourself Key Vault secret access when you need to debug. The application uses its own managed identity.
 
-## Cost Management
-
-The App Service Plan uses `F1` Free tier. The likely paid resource is Azure SQL Database Basic.
-
-Stop the Web App:
-
-```powershell
-az webapp stop `
-  --resource-group rg-az-pipelines-demo `
-  --name app-az-pipelines-demo
-```
-
-Start it again:
-
-```powershell
-az webapp start `
-  --resource-group rg-az-pipelines-demo `
-  --name app-az-pipelines-demo
-```
-
 Delete all demo resources when finished:
 
 ```powershell
 az group delete --name rg-az-pipelines-demo
 ```
-
-If you delete the resource group, recreate it with Bicep and rerun the pipeline. You will also need to recreate any resource-group-scoped role assignments for the Azure DevOps service principal.
 
 ## Secret Scanning
 
