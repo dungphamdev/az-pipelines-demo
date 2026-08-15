@@ -42,6 +42,8 @@ dotnet ef migrations add MigrationName --project src/AzPipelinesDemo.csproj
 
 The Bicep template uses the App Service `F1` Free tier for demo use. Free tier is intended for trials and learning, has quota limits, and is not suitable for production workloads.
 
+The SQL connection string is stored in Azure Key Vault. The Web App uses a system-assigned managed identity and reads the connection string through a Key Vault reference.
+
 Create the Azure resources with Azure CLI and Bicep:
 
 ```powershell
@@ -53,6 +55,13 @@ az deployment group create --resource-group rg-az-pipelines-demo --template-file
 Create an Azure DevOps Azure Resource Manager service connection named `sc-az-pipelines-demo`, then run the pipeline from `master`.
 
 Web App environment variables are managed in `infra/app-settings.bicep` through the `appSettings` parameter in `infra/main.bicep`.
+
+Check Key Vault and App Service configuration:
+
+```powershell
+az keyvault list --resource-group rg-az-pipelines-demo --output table
+az webapp config connection-string list --resource-group rg-az-pipelines-demo --name app-az-pipelines-demo --output table
+```
 
 Delete all demo Azure resources when finished:
 

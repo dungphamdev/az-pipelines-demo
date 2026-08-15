@@ -13,8 +13,11 @@ param sqlAdministratorPassword string
 
 var appServicePlanName = 'asp-${namePrefix}'
 var webAppName = 'app-${namePrefix}'
+var keyVaultName = 'kv-${uniqueString(resourceGroup().id, namePrefix)}'
 var sqlServerName = 'sql-${namePrefix}-${uniqueString(resourceGroup().id)}'
 var sqlDatabaseName = 'sqldb-${namePrefix}'
+var defaultConnectionSecretName = 'DefaultConnection'
+var defaultConnection = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabase.name};Persist Security Info=False;User ID=${sqlAdministratorLogin};Password=${sqlAdministratorPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
@@ -33,6 +36,9 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   name: webAppName
   location: location
   kind: 'app,linux'
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
@@ -42,6 +48,32 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
     }
+  }
+}
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: keyVaultName
+  location: location
+  properties: {
+    tenantId: subscription().tenantId
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+    enabledForTemplateDeployment: true
+    enableRbacAuthorization: false
+    accessPolicies: [
+      {
+        tenantId: subscription().tenantId
+        objectId: webApp.identity.principalId
+        permissions: {
+          secrets: [
+            'get'
+            'list'
+          ]
+        }
+      }
+    ]
   }
 }
 
@@ -79,12 +111,20 @@ resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2023-08-01-prev
   }
 }
 
+resource defaultConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: defaultConnectionSecretName
+  properties: {
+    value: defaultConnection
+  }
+}
+
 resource webAppConnectionStrings 'Microsoft.Web/sites/config@2023-12-01' = {
   parent: webApp
   name: 'connectionstrings'
   properties: {
     DefaultConnection: {
-      value: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabase.name};Persist Security Info=False;User ID=${sqlAdministratorLogin};Password=${sqlAdministratorPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+      value: '@Microsoft.KeyVault(SecretUri=${defaultConnectionSecret.properties.secretUri})'
       type: 'SQLAzure'
     }
   }
@@ -99,5 +139,6 @@ module webAppAppSettings 'app-settings.bicep' = {
 
 output webAppName string = webApp.name
 output defaultHostName string = webApp.properties.defaultHostName
+output keyVaultName string = keyVault.name
 output sqlServerName string = sqlServer.name
 output sqlDatabaseName string = sqlDatabase.name
