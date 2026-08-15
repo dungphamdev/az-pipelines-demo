@@ -1,5 +1,10 @@
 ﻿<!DOCTYPE html>
+@inject IConfiguration Configuration
 <html lang="en">
+@{
+    var productsEnabled = Configuration.GetValue<bool>("FeatureFlags:Products");
+}
+
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -25,9 +30,12 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Products" asp-action="Index">Products</a>
-                        </li>
+                        @if (productsEnabled)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-controller="Products" asp-action="Index">Products</a>
+                            </li>
+                        }
                     </ul>
                 </div>
             </div>

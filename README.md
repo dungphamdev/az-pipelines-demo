@@ -52,6 +52,8 @@ az deployment group create --resource-group rg-az-pipelines-demo --template-file
 
 Create an Azure DevOps Azure Resource Manager service connection named `sc-az-pipelines-demo`, then run the pipeline from `master`.
 
+Web App environment variables are managed in `infra/app-settings.bicep` through the `appSettings` parameter in `infra/main.bicep`.
+
 Delete all demo Azure resources when finished:
 
 ```powershell

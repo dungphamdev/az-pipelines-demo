@@ -90,6 +90,13 @@ resource webAppConnectionStrings 'Microsoft.Web/sites/config@2023-12-01' = {
   }
 }
 
+module webAppAppSettings 'app-settings.bicep' = {
+  name: 'web-app-app-settings'
+  params: {
+    webAppName: webApp.name
+  }
+}
+
 output webAppName string = webApp.name
 output defaultHostName string = webApp.properties.defaultHostName
 output sqlServerName string = sqlServer.name
