@@ -74,6 +74,65 @@ az role assignment create `
 
 The role assignment lets the pipeline find and deploy to the Web App, but it does not allow the service principal to grant Azure RBAC permissions to others.
 
+## Secrets And Configuration
+
+The production connection string is not stored directly in App Service settings. Bicep stores it in Key Vault as a secret named:
+
+```text
+DefaultConnection
+```
+
+The Web App uses a system-assigned managed identity with `get` and `list` secret permissions. App Service then resolves the connection string through a Key Vault reference.
+
+```mermaid
+sequenceDiagram
+    participant App as App Service
+    participant Identity as Managed Identity
+    participant KV as Key Vault
+    participant SQL as Azure SQL
+
+    App->>Identity: Authenticate as app-az-pipelines-demo
+    App->>KV: Resolve DefaultConnection reference
+    KV-->>App: Return SQL connection string
+    App->>SQL: Connect using resolved connection string
+```
+
+Application settings are managed in:
+
+```text
+infra/app-settings.bicep
+```
+
+Current settings:
+
+```bicep
+ASPNETCORE_ENVIRONMENT: 'Production'
+FeatureFlags__Products: 'true'
+```
+
+ASP.NET Core reads `FeatureFlags__Products` as:
+
+```text
+FeatureFlags:Products
+```
+
+The Products menu item is shown only when this flag is enabled.
+
+Quickly toggle the Products feature in Azure without a full Bicep deployment:
+
+```powershell
+az webapp config appsettings set `
+  --resource-group rg-az-pipelines-demo `
+  --name app-az-pipelines-demo `
+  --settings FeatureFlags__Products=false
+
+az webapp restart `
+  --resource-group rg-az-pipelines-demo `
+  --name app-az-pipelines-demo
+```
+
+Remember: the next full Bicep deployment will reset the value to whatever is defined in `infra/app-settings.bicep`.
+
 ## What This Demonstrates
 
 - ASP.NET Core MVC on `.NET 10`
@@ -194,65 +253,6 @@ az deployment group create `
 
 You must pass `sqlAdministratorPassword` when running a full Bicep deployment because it is a required secure parameter. Do not commit real passwords to the repository.
 
-## Secrets And Configuration
-
-The production connection string is not stored directly in App Service settings. Bicep stores it in Key Vault as a secret named:
-
-```text
-DefaultConnection
-```
-
-The Web App uses a system-assigned managed identity with `get` and `list` secret permissions. App Service then resolves the connection string through a Key Vault reference.
-
-```mermaid
-sequenceDiagram
-    participant App as App Service
-    participant Identity as Managed Identity
-    participant KV as Key Vault
-    participant SQL as Azure SQL
-
-    App->>Identity: Authenticate as app-az-pipelines-demo
-    App->>KV: Resolve DefaultConnection reference
-    KV-->>App: Return SQL connection string
-    App->>SQL: Connect using resolved connection string
-```
-
-Application settings are managed in:
-
-```text
-infra/app-settings.bicep
-```
-
-Current settings:
-
-```bicep
-ASPNETCORE_ENVIRONMENT: 'Production'
-FeatureFlags__Products: 'true'
-```
-
-ASP.NET Core reads `FeatureFlags__Products` as:
-
-```text
-FeatureFlags:Products
-```
-
-The Products menu item is shown only when this flag is enabled.
-
-Quickly toggle the Products feature in Azure without a full Bicep deployment:
-
-```powershell
-az webapp config appsettings set `
-  --resource-group rg-az-pipelines-demo `
-  --name app-az-pipelines-demo `
-  --settings FeatureFlags__Products=false
-
-az webapp restart `
-  --resource-group rg-az-pipelines-demo `
-  --name app-az-pipelines-demo
-```
-
-Remember: the next full Bicep deployment will reset the value to whatever is defined in `infra/app-settings.bicep`.
-
 ## Useful Azure Commands
 
 Show the Web App URL:
@@ -308,22 +308,3 @@ Delete all demo resources when finished:
 ```powershell
 az group delete --name rg-az-pipelines-demo
 ```
-
-## Secret Scanning
-
-Before committing, scan for accidental secrets:
-
-```powershell
-gitleaks dir . --verbose --redact
-gitleaks protect --staged --verbose --redact
-gitleaks detect --source . --verbose --redact
-```
-
-The Bicep parameter declaration is safe:
-
-```bicep
-@secure()
-param sqlAdministratorPassword string
-```
-
-Actual password values, connection strings with passwords, tokens, and API keys should never be committed.
