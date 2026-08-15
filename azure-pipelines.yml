@@ -81,19 +81,16 @@ stages:
   dependsOn: Build
   condition: succeeded()
   jobs:
-  - deployment: DeployWebApp
+  - job: DeployWebApp
     displayName: Deploy to Azure App Service
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: current
-            artifact: drop
+    steps:
+    - download: current
+      artifact: drop
 
-          - task: AzureWebApp@1
-            displayName: Deploy Web App
-            inputs:
-              azureSubscription: $(azureSubscription)
-              appType: webAppLinux
-              appName: $(webAppName)
-              package: $(Pipeline.Workspace)/drop/**/*.zip
+    - task: AzureWebApp@1
+      displayName: Deploy Web App
+      inputs:
+        azureSubscription: $(azureSubscription)
+        appType: webAppLinux
+        appName: $(webAppName)
+        package: $(Pipeline.Workspace)/drop/**/*.zip
