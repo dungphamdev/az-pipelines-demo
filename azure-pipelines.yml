@@ -9,64 +9,92 @@ variables:
   projectPath: src/AzPipelinesDemo.csproj
   testProjectPath: tests/AzPipelinesDemo.Tests/AzPipelinesDemo.Tests.csproj
   coverageReportPath: $(Agent.TempDirectory)/coveragereport
+  azureSubscription: sc-az-pipelines-demo
+  webAppName: app-az-pipelines-demo
 
-steps:
-- task: UseDotNet@2
-  displayName: Use .NET 8 SDK
-  inputs:
-    packageType: sdk
-    version: 8.x
-
-- task: DotNetCoreCLI@2
-  displayName: Restore
-  inputs:
-    command: restore
-    projects: |
-      $(projectPath)
-      $(testProjectPath)
-
-- task: DotNetCoreCLI@2
+stages:
+- stage: Build
   displayName: Build
-  inputs:
-    command: build
-    projects: $(projectPath)
-    arguments: --configuration $(buildConfiguration) --no-restore
+  jobs:
+  - job: Build
+    displayName: Build, Test, and Publish
+    steps:
+    - task: UseDotNet@2
+      displayName: Use .NET 8 SDK
+      inputs:
+        packageType: sdk
+        version: 8.x
 
-- task: DotNetCoreCLI@2
-  displayName: Test
-  inputs:
-    command: test
-    projects: $(testProjectPath)
-    arguments: --configuration $(buildConfiguration) --no-restore --logger trx --collect "XPlat Code Coverage"
-    publishTestResults: true
+    - task: DotNetCoreCLI@2
+      displayName: Restore
+      inputs:
+        command: restore
+        projects: |
+          $(projectPath)
+          $(testProjectPath)
 
-- script: |
-    dotnet tool install --global dotnet-reportgenerator-globaltool
-    reportgenerator \
-      -reports:"$(Agent.TempDirectory)/**/coverage.cobertura.xml" \
-      -targetdir:"$(coverageReportPath)" \
-      -reporttypes:"HtmlInline_AzurePipelines;Cobertura"
-  displayName: Generate Code Coverage Report
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        command: build
+        projects: $(projectPath)
+        arguments: --configuration $(buildConfiguration) --no-restore
 
-- task: PublishCodeCoverageResults@2
-  displayName: Publish Code Coverage
-  inputs:
-    summaryFileLocation: $(coverageReportPath)/Cobertura.xml
-    reportDirectory: $(coverageReportPath)
-    failIfCoverageEmpty: true
+    - task: DotNetCoreCLI@2
+      displayName: Test
+      inputs:
+        command: test
+        projects: $(testProjectPath)
+        arguments: --configuration $(buildConfiguration) --no-restore --logger trx --collect "XPlat Code Coverage"
+        publishTestResults: true
 
-- task: DotNetCoreCLI@2
-  displayName: Publish
-  inputs:
-    command: publish
-    publishWebProjects: false
-    projects: $(projectPath)
-    arguments: --configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)
-    zipAfterPublish: true
+    - script: |
+        dotnet tool install --global dotnet-reportgenerator-globaltool
+        reportgenerator \
+          -reports:"$(Agent.TempDirectory)/**/coverage.cobertura.xml" \
+          -targetdir:"$(coverageReportPath)" \
+          -reporttypes:"HtmlInline_AzurePipelines;Cobertura"
+      displayName: Generate Code Coverage Report
 
-- task: PublishBuildArtifacts@1
-  displayName: Publish Artifact
-  inputs:
-    PathtoPublish: $(Build.ArtifactStagingDirectory)
-    ArtifactName: drop
-    publishLocation: Container
+    - task: PublishCodeCoverageResults@2
+      displayName: Publish Code Coverage
+      inputs:
+        summaryFileLocation: $(coverageReportPath)/Cobertura.xml
+        reportDirectory: $(coverageReportPath)
+        failIfCoverageEmpty: true
+
+    - task: DotNetCoreCLI@2
+      displayName: Publish
+      inputs:
+        command: publish
+        publishWebProjects: false
+        projects: $(projectPath)
+        arguments: --configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)
+        zipAfterPublish: true
+
+    - publish: $(Build.ArtifactStagingDirectory)
+      displayName: Publish Artifact
+      artifact: drop
+
+- stage: Deploy
+  displayName: Deploy
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployWebApp
+    displayName: Deploy to Azure App Service
+    environment: production
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+
+          - task: AzureWebApp@1
+            displayName: Deploy Web App
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appType: webAppLinux
+              appName: $(webAppName)
+              package: $(Pipeline.Workspace)/drop/**/*.zip
