@@ -1,0 +1,38 @@
+@model IEnumerable<AzPipelinesDemo.Models.Product>
+
+@{
+    ViewData["Title"] = "Products";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Products</h1>
+    <a asp-action="Create" class="btn btn-primary">Create Product</a>
+</div>
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th class="text-end">Price</th>
+            <th class="text-end">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var product in Model)
+        {
+            <tr>
+                <td>@product.Name</td>
+                <td>@product.Description</td>
+                <td class="text-end">@product.Price.ToString("C")</td>
+                <td class="text-end">
+                    <a asp-action="Details" asp-route-id="@product.Id">Details</a>
+                    <span class="text-muted">|</span>
+                    <a asp-action="Edit" asp-route-id="@product.Id">Edit</a>
+                    <span class="text-muted">|</span>
+                    <a asp-action="Delete" asp-route-id="@product.Id">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
